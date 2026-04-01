@@ -1194,6 +1194,7 @@ async def __run__():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise e
 
 # Create the task
 asyncio.ensure_future(__run__())
