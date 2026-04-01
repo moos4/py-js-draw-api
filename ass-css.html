@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { display: flex; flex-direction: row; gap: 20px; padding: 20px; font-family: sans-serif; background-color: #f4f4f4; }
+        .pycontainer { display: flex; flex-direction: column; width: 800px; }
+        .workspace { display: flex; flex: 1; overflow: hidden; }
+        .file-bar {
+            display: flex;
+            background: #222;
+            border: 2px solid black;
+            border-bottom: none;
+            overflow-x: auto;
+            align-items: center;
+        }
+        .file-tab {
+            padding: 8px 12px;
+            color: #aaa;
+            background: #333;
+            border-right: 1px solid #111;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .file-tab.active { background: white; color: black; font-weight: bold; }
+        .file-tab:hover:not(.active) { background: #444; color: white; }
+        
+        .tab-icon {
+            font-style: normal;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            opacity: 0.6;
+        }
+        .tab-icon:hover { opacity: 1; background: #ddd; color: black; }
+        .delete-btn { color: #ff5555; }
+
+        .new-file-btn {
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .textareaLinesNumbers {
+    position: relative;
+    border: 2px solid black;
+    background: white;
+    display: flex;
+    overflow: hidden;
+    box-sizing: border-box;
+    min-height: 400px;
+}
+
+#image-preview {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    max-width: 90%;
+    max-height: 90%;
+}
+        .linesContainer {
+            display: block; border: none; border-right: 1px solid #ddd;
+            text-align: right; padding: 10px 5px; width: 35px;
+            z-index: 0; resize: none; background: #eee; color: #999;
+            font-family: monospace; font-size: 14px; line-height: 21px;
+            overflow: hidden; pointer-events: none; box-sizing: border-box;
+        }
+        textarea#editor {
+            z-index: 1; flex-grow: 1; resize: none; border: none; outline: none;
+            background: transparent; height: 400px; padding: 10px;
+            font-family: monospace; font-size: 14px; line-height: 21px;
+            display: block; white-space: pre; overflow: auto;
+        }
+        .consolediv {
+            border: 2px solid black; height: 200px; width: 800px; padding: 10px;
+            background: #1e1e1e; color: #00ff00; overflow: auto;
+            font-family: monospace; font-size: 14px; line-height: 21px; box-sizing: border-box;
+            white-space: pre-wrap; word-wrap: break-word;
+        }
+        .taskbar {
+            display: flex; align-items: center; padding: 8px 10px; background: #ccc;
+            border-left: 2px solid black; border-right: 2px solid black;
+        }
+        button { padding: 5px 15px; cursor: pointer; font-weight: bold; background: #fff; border: 1px solid #000; }
+        .console-input { background: transparent; border: none; color: #00ff00; font-family: monospace; outline: 1px solid #000; width: 80%; box-shadow: 0 0 0 1pt grey;}
+        .main-layout {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .right-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 404px;
+        }
+        
+        .docs-panel {
+            border: 2px solid black;
+            background: #fff;
+            font-family: sans-serif;
+        }
+        
+        .docs-header {
+            background: #222;
+            color: white;
+            padding: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            user-select: none;
+        }
+        
+        .docs-content {
+            padding: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+            border-top: 1px solid black;
+        }
+        
+        .docs-content code {
+            background: #eee;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .docs-item {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .sidebar {
+    width: 250px; background: #252526; color: #ccc;
+    display: flex; flex-direction: column; transition: width 0.3s;
+    border-right: 1px solid #111; position: relative;
+}
+.sidebar.collapsed { width: 0; overflow: hidden; border: none; }
+
+.sidebar-header {
+    padding: 10px; background: #333; font-size: 12px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center;
+}
+
+.file-tree { flex: 1; overflow-y: auto; padding: 5px; font-family: sans-serif; font-size: 13px; }
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding-right: 50px;
+}
+
+.item-actions {
+    display: none;
+    position: absolute;
+    right: 5px;
+    gap: 5px;
+}
+
+.tree-item:hover .item-actions {
+    display: flex;
+}
+
+.action-btn {
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+    opacity: 0.7;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.action-btn:hover {
+    opacity: 1;
+    background: #444;
+}
+
+.btn-delete:hover { color: #ff5555; }
+.btn-rename:hover { color: #55ff55; }
+
+.tree-item[draggable="true"]:active {
+    opacity: 0.5;
+    border: 1px dashed #666;
+}
+.folder-content {
+    border-left: 1px solid #444;
+    margin-left: 12px !important;
+    padding-left: 4px;
+}
+
+.fs-actions { padding: 10px; display: flex; flex-wrap: wrap; gap: 5px; background: #2d2d2d; }
+.fs-btn {
+    background: #444; border: none; color: white; padding: 5px;
+    font-size: 11px; cursor: pointer; flex: 1; min-width: 60px;
+}
+.fs-btn:hover { background: #666; }
+#toggle-sidebar {
+    position: absolute; left: 250px; top: 10px; z-index: 100;
+    background: #252526; color: white; border: 1px solid #444; cursor: pointer;
+}
+    </style>
+</head>
+<body>
+<button id="toggle-sidebar" onclick="toggleSidebar()">◀</button>
+<div class="main-layout">
+    <div class="workspace">
+      <div class="sidebar collapsed" id="sidebar">
+          <div class="sidebar-header">EXPLORER</div>
+          <div class="fs-actions">
+              <button class="fs-btn" onclick="createNewFile()">+ File</button>
+              <button class="fs-btn" onclick="createNewFolder()">+ Folder</button>
+              <button class="fs-btn" onclick="document.getElementById('import-file').click()">Import</button>
+              <button class="fs-btn" onclick="exportProject()"><i class="fa-solid fa-download"></i>&nbsp;Export ZIP</button>
+              <button class="fs-btn" onclick="document.getElementById('import-zip').click()"><i class="fa-solid fa-upload"></i>&nbsp;Load ZIP</button>
+          </div>
+          <div id="file-tree" class="file-tree"></div>
+          
+          <input type="file" id="import-file" style="display:none" multiple onchange="handleFileImport(this)">
+          <input type="file" id="import-zip" style="display:none" accept=".zip" onchange="handleZipImport(this)">
+      </div>
+      <div class="pycontainer">
+
+        <div class="textareaLinesNumbers">
+            <textarea id="line-gutter" class="linesContainer" readonly tabindex="-1"></textarea>
+            <textarea id="editor" spellcheck="false"></textarea>
+            <img id="image-preview" style="display:none; max-width:100%; max-height:400px; margin: 20px auto; object-fit: contain;">
+        </div>
+
+        <div class="taskbar">
+            <button id="run-btn" onclick="runPython()" disabled>RUN SCRIPT</button>
+            <button id="stop-btn" onclick="stopPython()" style="margin-left: 10px; color: red;" disabled>STOP</button>
+            <button onclick="document.getElementById('console').textContent=''; updateGutters();" style="margin-left: 10px;">CLEAR</button>
+        </div>
+        <div id="console" class="consolediv">Initializing Python...</div>
+    </div>
+    </div>
+    <div class="right-sidebar">
+        <div class="canvas-container" style="margin-left: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span style="font-size: 12px; font-family: sans-serif;"><b>Canvas:</b> 400x400</span>
+                <button onclick="popoutCanvas()" style="padding: 2px 8px; font-size: 10px;">Popout ↗</button>
+            </div>
+            <canvas id="pyCanvas" width="400" height="400" tabindex="0" style="border: 2px solid black; background: white; outline: none;"></canvas>
+        </div>
+        <div class="docs-panel">
+            <div class="docs-header" id="docs-toggle">
+                DRAW API DOCS <span id="docs-arrow">▼</span>
+            </div>
+            <div class="docs-content" id="docs-content">
+                <div class="docs-item"><code>import draw</code><br>Must be at the top. Provides access to all drawing and event tools.</div>
+                <hr style="border: 1px solid #444; margin: 10px 0;">
+                <div style="font-weight: bold; margin-bottom: 5px;">Creating a Canvas</div>
+                <div class="docs-item"><code>cv = draw.Canvas(width, height)</code><br>Creates a new canvas element. You can create as many as you want! <br><i>Ex: <code>cv = draw.Canvas(200, 200)</code></i></div>
+                <div class="docs-item"><code>cv.rect() / cv.circle() / ...</code><br>All drawing methods below can be called on a specific canvas instance.</div>
+                <hr style="border: 1px solid #444; margin: 10px 0;">
+                <div style="font-weight: bold; margin-bottom: 5px;">Drawing Commands</div>
+                <div class="docs-item"><code>draw.rect(x, y, w, h, color)</code><br>Draws a rectangle. Color can be a string, a hex value or an <code>rgba()</code> object. <br>Returns a <b>Shape</b> object.<br><i>Ex: <code>draw.rect(50, 50, 25, 25, "red")</code></i></div>
+                <div class="docs-item"><code>draw.circle(x, y, radius, color)</code><br>Draws a circle at center (x, y). <br>Returns a <b>Shape</b> object.<br><i>Ex: <code>draw.circle(50, 50, 25, "#32a852")</code></i>></div>
+                <div class="docs-item"><code>draw.line(x1, y1, x2, y2, color, width)</code><br>Draws a line with a specific thickness.<br>Returns nothing.<br><i>Ex: <code>draw.line(50, 50, 25, 25, "red", 10)</code></i></div>
+                <div class="docs-item"><code>draw.text(val, x, y, color)</code><br>Draws text. <code>val</code> can be a string, number, or variable.<br>Returns nothing.<br><i>Ex: <code>draw.text("Some Text", 50, 50, "red")</code></i></div>
+                <div class="docs-item"><code>draw.image(path, x, y, width, height)</code><br>Loads image from <b>URL</b> or <b>Filesystem</b>. Automatically handles async loading.<br><b>width</b> or <b>height</b> are not necessary<br>Returns a <b>Shape</b> object.<br><i>Ex: <code>cv = draw.image("map.png", 50, 50)</code></i></div>
+                <div class="docs-item"><code>draw.gradient(c1, c2)</code><br>Creates a vertical fade. <br>Can be used in other methods as the <b>color</b><br>Returns a <b>color</b> object.<br><i>Ex: <code>draw.rect(0,0,100,100, draw.gradient("blue", "black"))</code></i></div>
+                <div class="docs-item"><code>draw.set_alpha(0.0 - 1.0)</code><br>Sets transparency for all following shapes on that canvas.<br>Returns nothing.<br><i>Ex: <code>draw.set_alpha(0.5)</code></i></div>
+                <div class="docs-item"><code>draw.clear()</code><br>Wipes the canvas drawings and shapes, but keeps keys active.<br>Returns nothing.<br><i>Ex: <code>draw.clear()</code></i></div>
+                
+                <hr style="border: 1px solid #444; margin: 10px 0;">
+                <div style="font-weight: bold; margin-bottom: 5px;">Events & Interaction</div>
+                <div class="docs-item"><code>draw.on_key("key", func)</code><br>Runs <code>func</code> when a key is pressed. <br><i>Keys: " ", "ArrowUp", "a", "Enter", etc.<br>Returns nothing.<br><i>Ex: <code>def d_pressed:<br>&nbsp;&nbsp;&nbsp;&nbsp;print("D was pressed!")<br>draw.on_key("D", d_pressed)</code></i></i></div>
+                <div class="docs-item"><code>draw.is_key_pressed("key")</code><br>Returns <code>True/False.</code>. Use inside <code>while</code> loops for smooth movement.<br><i>Ex: <code>if draw.is_key_pressed("ArrowLeft"): x -= 5</code></i></div>
+                <div class="docs-item"><code>draw.on_click(func)</code><br>Global click listener. Function must accept x, y: <br>Returns nothing.<br><i>Ex: <code>def global_click(x, y):<br>&nbsp;&nbsp;&nbsp;&nbsp;print(f"Canvas 1 clicked at: {x}, {y}")<br>&nbsp;&nbsp;&nbsp;&nbsp;cv.circle(x, y, 10, "rgba(255, 255, 255, 0.5)")<br>cv.on_click(global_click)</code></i></div>
+                <div class="docs-item"><code>shape.on_click(func)</code><br>Attaches a click event <b>only</b> to that specific shape or image. <br>Returns nothing.<br><i>Ex: <code>btn = draw.rect(...); btn.on_click(my_func)</code></i></div>
+                <hr style="border: 1px solid #444; margin: 10px 0;">
+                <div class="docs-item"><code>draw.reset()</code><br>Destroys all extra canvases and wipes all key/click listeners. Use for a "Hard Restart".<br>Returns nothing.<br><i>Ex: <code>draw.reset()</code></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script id="draw-module-code" type="text/python">
+import asyncio, base64
+from js import document, Image, window
+
+_pressed_keys = set()
+_key_callbacks = {}
+_canvases = []
+
+class Canvas:
+    def __init__(self, w, h):
+        self.w, self.h = w, h
+        self._draw_queue = []
+        self._shapes = []
+        self._click_callbacks = []
+        
+        self.el = document.createElement("canvas")
+        self.el.width = w
+        self.el.height = h
+        self.el.style.border = "2px solid black"
+        self.el.style.background = "white"
+        self.el.tabIndex = 0
+        self.ctx = self.el.getContext("2d")
+        
+        placeholder = document.getElementById("pyCanvas")
+        
+        if placeholder and placeholder.parentNode:
+            if len(_canvases) == 0:
+                self.el.id = "pyCanvas"
+                placeholder.replaceWith(self.el)
+            else:
+                placeholder.parentNode.appendChild(self.el)
+                print("Warning: Multiple canvases detected. Recommended to use 'Popout' mode.")
+        else:
+            document.body.appendChild(self.el)
+
+        _canvases.append(self)
+        
+        def proxy_click(e):
+            rect = self.el.getBoundingClientRect()
+            self._internal_click_handler(e.clientX - rect.left, e.clientY - rect.top)
+        self.el.onclick = proxy_click
+
+    def clear(self):
+        self.ctx.clearRect(0, 0, self.w, self.h)
+        self._draw_queue = []
+        self._shapes = []
+        self._click_callbacks = []
+
+    def _process_queue(self):
+        self.ctx.clearRect(0, 0, self.w, self.h)
+        for task in self._draw_queue:
+            self.ctx.globalAlpha = task.get('alpha', 1.0)
+            fill = task.get('color', 'black')
+            
+            if isinstance(fill, dict) and fill.get("_is_gradient"):
+                h_val = task.get('h', task.get('r', 0) * 2)
+                y_start = task.get('y', 0)
+                g = self.ctx.createLinearGradient(task.get('x', 0), y_start, task.get('x', 0), y_start + h_val)
+                g.addColorStop(0, fill['c1']); g.addColorStop(1, fill['c2'])
+                self.ctx.fillStyle = g
+                self.ctx.strokeStyle = g
+            else:
+                self.ctx.fillStyle = fill
+                self.ctx.strokeStyle = fill
+
+            t = task['type']
+            if t == 'rect': self.ctx.fillRect(task['x'], task['y'], task['w'], task['h'])
+            elif t == 'circle':
+                self.ctx.beginPath()
+                self.ctx.arc(task['x'], task['y'], task['r'], 0, 6.28)
+                self.ctx.fill()
+            elif t == 'text':
+                self.ctx.font = "20px Arial"
+                self.ctx.fillText(str(task['val']), task['x'], task['y'])
+            elif t == 'line':
+                self.ctx.beginPath(); self.ctx.lineWidth = task['width']
+                self.ctx.moveTo(task['x1'], task['y1']); self.ctx.lineTo(task['x2'], task['y2'])
+                self.ctx.stroke()
+            elif t == 'image' and task['loaded']:
+                self.ctx.drawImage(task['img'], task['x'], task['y'], task['w'], task['h'])
+        self.ctx.globalAlpha = 1.0
+    def set_alpha(self, val):
+        self.ctx.globalAlpha = float(val)
+
+    def rect(self, x, y, w, h, color="black"):
+        self._draw_queue.append({'type': 'rect', 'x': x, 'y': y, 'w': w, 'h': h, 'color': color, 'alpha': self.ctx.globalAlpha})
+        self._process_queue()
+        return Shape(x, y, w, h, self)
+
+    def circle(self, x, y, r, color="black"):
+        self._draw_queue.append({'type': 'circle', 'x': x, 'y': y, 'r': r, 'color': color, 'alpha': self.ctx.globalAlpha})
+        self._process_queue()
+        return Shape(x-r, y-r, r*2, r*2, self)
+
+    def text(self, t, x, y, color="black"):
+        self._draw_queue.append({'type': 'text', 'val': t, 'x': x, 'y': y, 'color': color, 'alpha': self.ctx.globalAlpha})
+        self._process_queue()
+    
+    def line(self, x1, y1, x2, y2, color="black", width=2):
+        self._draw_queue.append({
+            'type': 'line',
+            'x1': x1, 'y1': y1,
+            'x2': x2, 'y2': y2,
+            'color': color,
+            'width': width,
+            'alpha': self.ctx.globalAlpha
+        })
+        self._process_queue()
+
+    def image(self, path_or_url, x, y, w=None, h=None):
+        img = Image.new()
+        
+        if path_or_url.startswith(("http://", "https://", "data:")):
+            img.src = path_or_url
+        else:
+            try:
+                with open(path_or_url, "r") as f:
+                    content = f.read()
+                    if content.startswith("data:image"):
+                        img.src = content
+                    else:
+                        f.close()
+                        with open(path_or_url, "rb") as fb:
+                            encoded = base64.b64encode(fb.read()).decode('utf-8')
+                            ext = path_or_url.split('.')[-1].lower()
+                            img.src = f"data:image/{ext};base64,{encoded}"
+            except Exception as e:
+                print(f"Image Error: {e}")
+
+        task = {
+            'type': 'image', 'img': img, 'x': x, 'y': y,
+            'w': w, 'h': h, 'loaded': False, 'alpha': self.ctx.globalAlpha
+        }
+        self._draw_queue.append(task)
+        
+        temp_shape = Shape(x, y, w or 0, h or 0, self)
+
+        def on_load(e):
+            task['loaded'] = True
+            task['w'] = w or img.width
+            task['h'] = h or img.height
+            temp_shape.w = task['w']
+            temp_shape.h = task['h']
+            self._process_queue()
+
+        img.onload = on_load
+        return temp_shape
+
+    def _internal_click_handler(self, x, y):
+        for s in reversed(self._shapes):
+            if s.callback and s.is_hit(x, y):
+                res = s.callback()
+                if asyncio.iscoroutine(res): asyncio.ensure_future(res)
+                return
+        for cb in self._click_callbacks:
+            res = cb(x, y)
+            if asyncio.iscoroutine(res): asyncio.ensure_future(res)
+    def on_click(self, x):
+        self._click_callbacks.append(x)
+    
+
+class Shape:
+    def __init__(self, x, y, w, h, parent_canvas):
+        self.x, self.y, self.w, self.h = x, y, w, h
+        self.canvas = parent_canvas
+        self.callback = None
+
+    def is_hit(self, px, py):
+        return self.x <= px <= self.x + self.w and self.y <= py <= self.y + self.h
+
+    def on_click(self, func):
+        self.callback = func
+        if self not in self.canvas._shapes:
+            self.canvas._shapes.append(self)
+
+_default_canvas = None
+
+def _get_default():
+    global _canvases
+    if not _canvases:
+        return Canvas(400, 400)
+    return _canvases[0]
+
+def rect(*args, **kwargs): return _get_default().rect(*args, **kwargs)
+def circle(*args, **kwargs): return _get_default().circle(*args, **kwargs)
+def text(*args, **kwargs): return _get_default().text(*args, **kwargs)
+def clear(): _get_default().clear()
+def gradient(c1, c2): return {"_is_gradient": True, "c1": c1, "c2": c2}
+def line(*args, **kwargs): return _get_default().line(*args, **kwargs)
+def image(*args, **kwargs): return _get_default().image(*args, **kwargs)
+
+def on_key(key, func):
+    if key not in _key_callbacks: _key_callbacks[key] = []
+    _key_callbacks[key].append(func)
+
+def is_key_pressed(key): return key in _pressed_keys
+
+def _internal_key_handler(key, is_down):
+    if is_down:
+        _pressed_keys.add(key)
+        if key in _key_callbacks:
+            for func in _key_callbacks[key]:
+                res = func()
+                if asyncio.iscoroutine(res): asyncio.ensure_future(res)
+    else:
+        _pressed_keys.discard(key)
+
+def setup(target_window, target_document):
+    target_window.onkeydown = lambda e: _internal_key_handler(e.key, True)
+    target_window.onkeyup = lambda e: _internal_key_handler(e.key, False)
+
+def reset():
+    global _canvases, _key_callbacks, _pressed_keys
+    for c in _canvases:
+        if c.el.id != "pyCanvas":
+            c.el.remove()
+        else:
+          c.clear()
+    _canvases = []
+    _key_callbacks = {}
+    _pressed_keys = set()
+</script>
+<script>
+const editor = $('#editor');
+const gutter = $('#line-gutter');
+const consoleDiv = document.getElementById("console");
+const runBtn = document.getElementById("run-btn");
+const stopBtn = document.getElementById("stop-btn");
+
+let pyodide;
+let isRunning = false;
+
+
+// Initial File Set
+let filesystem = {
+    "main.py": { content: "# Main Script\nimport draw", type: "file" },
+    "assets": { type: "folder", children: {} }
+};
+let activeFilePath = "main.py";
+
+const drawModuleCode = document.getElementById("draw-module-code").textContent;
+
+function updateFileTree() {
+    const treeRoot = document.getElementById('file-tree');
+    treeRoot.innerHTML = '';
+    renderLevel(filesystem, treeRoot, "");
+}
+
+function renderLevel(obj, container, path) {
+    const iconMap = {
+        "folder": {icon: "fas fa-folder", color: "#dcb67a"},
+        "py": { icon: "fab fa-python", color: "#3776ab" },
+        "js": { icon: "fab fa-js-square", color: "#f7df1e" },
+        "json": { icon: "fas fa-code", color: "#fbc02d" },
+        "txt": { icon: "fas fa-file-alt", color: "#90a4ae" },
+        "html": { icon: "fab fa-html5",  color: "#e34f26" },
+        "css": { icon: "fab fa-css3-alt", color: "#1572b6" },
+        "jpg": { icon: "fas fa-file-image", color: "#4caf50" },
+        "jpeg": { icon: "fas fa-file-image", color: "#4caf50" },
+        "png": { icon: "fas fa-file-image", color: "#4caf50" },
+        "gif": { icon: "fas fa-file-image", color: "#4caf50" },
+        "webp": { icon: "fas fa-file-image", color: "#4caf50" },
+        "default": { icon: "fas fa-file", color: "#ccc" },
+        "obj": { icon: "fas fa-cubes", color: "#0073ff" },
+        "mtl": { icon: "fas fa-cube", color: "#ff7700" },
+        "gltf": { icon: "fas fa-cubes", color: "#0073ff" },
+        "glb": { icon: "fas fa-cubes", color: "#0073ff" },
+        "fbx": { icon: "fas fa-cubes", color: "#0073ff" },
+        "stl": { icon: "fas fa-cubes", color: "#0073ff" },
+    };
+
+    Object.keys(obj).sort().forEach(name => {
+        const item = obj[name];
+        const fullPath = path + name;
+        const div = document.createElement('div');
+        div.className = `tree-item ${activeFilePath === fullPath ? 'active' : ''}`;
+        
+        // CONTENT HTML
+        const ext = item.type === 'folder' ? 'folder' : name.split('.').pop().toLowerCase();
+        const config = iconMap[ext] || iconMap["default"];
+        
+        let contentHtml = `<i class="${config.icon}" style="color: ${config.color}; width: 18px;"></i>
+                           <span class="file-name">${name}</span>`;
+        
+        // ACTION BUTTONS HTML
+        const isMain = fullPath === "main.py";
+        contentHtml += `
+            <div class="item-actions">
+                <i class="fas fa-edit action-btn btn-rename" title="Rename"></i>
+                ${isMain ? '' : '<i class="fas fa-trash action-btn btn-delete" title="Delete"></i>'}
+            </div>
+        `;
+
+        div.innerHTML = contentHtml;
+
+        // RENAME CLICK
+        div.querySelector('.btn-rename').onclick = (e) => {
+            e.stopPropagation();
+            renameItem(fullPath);
+        };
+
+        // DELETE CLICK
+        const delBtn = div.querySelector('.btn-delete');
+        if (delBtn) {
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteItem(fullPath);
+            };
+        }
+
+        // DRAG, DROP, OPEN LOGIC
+        div.draggable = true;
+        div.ondragstart = (e) => {
+            e.dataTransfer.setData("sourcePath", fullPath);
+            e.stopPropagation();
+        };
+
+        if (item.type === 'folder') {
+            div.ondragover = (e) => { e.preventDefault(); div.style.background = "#37373d"; };
+            div.ondragleave = () => { div.style.background = ""; };
+            div.ondrop = (e) => {
+                e.preventDefault();
+                div.style.background = "";
+                const sourcePath = e.dataTransfer.getData("sourcePath");
+                moveFileSystemItem(sourcePath, fullPath);
+            };
+
+            container.appendChild(div);
+            const childContainer = document.createElement('div');
+            childContainer.className = 'folder-content';
+            renderLevel(item.children, childContainer, fullPath + "/");
+            
+            div.onclick = () => $(childContainer).toggle();
+            container.appendChild(childContainer);
+        } else {
+            div.onclick = () => switchToFile(fullPath);
+            container.appendChild(div);
+        }
+    });
+}
+
+// ZIP EXPORT
+async function exportProject() {
+    const zip = new JSZip();
+    function addToZip(folderObj, zipFolder, path) {
+        for (let name in folderObj) {
+            let item = folderObj[name];
+            if (item.type === 'file') {
+                zipFolder.file(name, item.content);
+            } else {
+                addToZip(item.children, zipFolder.folder(name), path + name + "/");
+            }
+        }
+    }
+    addToZip(filesystem, zip, "");
+    const blob = await zip.generateAsync({type:"blob"});
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "project.zip";
+    a.click();
+}
+
+// ZIP IMPORT
+async function handleZipImport(input) {
+    const file = input.files[0];
+    const zip = await JSZip.loadAsync(file);
+    let newFs = {};
+    
+    for (let path in zip.files) {
+        const fileData = zip.files[path];
+        if (!fileData.dir) {
+            const content = await fileData.async("string");
+            setPathValue(newFs, path, content);
+        }
+    }
+    filesystem = newFs;
+    updateFileTree();
+}
+
+async function handleFileImport(input) {
+    const files = Array.from(input.files);
+    for (const file of files) {
+        if (!file) return;
+
+        const name = file.name;
+        const extension = name.split('.').pop().toLowerCase();
+        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            const content = e.target.result;
+
+            filesystem[name] = {
+                type: "file",
+                content: content
+            };
+
+            switchToFile(name);
+            input.value = "";
+        };
+
+        if (isImage) {
+            reader.readAsDataURL(file);
+        } else {
+            reader.readAsText(file);
+        }
+    }
+}
+
+function createNewFolder() {
+    const name = prompt("Enter folder name:");
+    if (name) {
+        if (filesystem[name]) {
+            alert("Name already exists!");
+            return;
+        }
+        filesystem[name] = {
+            type: "folder",
+            children: {}
+        };
+        updateFileTree();
+    }
+}
+
+function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const btn = document.getElementById('toggle-sidebar');
+    sb.classList.toggle('collapsed');
+    btn.style.left = sb.classList.contains('collapsed') ? '0px' : '250px';
+    btn.innerText = sb.classList.contains('collapsed') ? '▶' : '◀';
+}
+
+function updateFileBar() {
+    const list = $('#tab-list');
+    if (!list.length) return;
+
+    list.empty();
+    
+    Object.keys(filesystem).forEach(name => {
+        const item = filesystem[name];
+        
+        if (item.type === 'folder') return;
+
+        const isActive = name === activeFilePath;
+        const tab = $(`
+            <div class="file-tab ${isActive ? 'active' : ''}">
+                <span class="tab-name">${name}</span>
+            </div>
+        `);
+        
+        tab.on('click', (e) => {
+            if (e.target.classList.contains('tab-icon')) return;
+            switchToFile(name);
+        });
+
+        if (name !== "main.py") {
+            const renameBtn = $('<i class="tab-icon">✎</i>').on('click', (e) => {
+                e.stopPropagation();
+                renameFile(name);
+            });
+            const deleteBtn = $('<i class="tab-icon delete-btn">×</i>').on('click', (e) => {
+                e.stopPropagation();
+                deleteFile(name);
+            });
+            tab.append(renameBtn).append(deleteBtn);
+        }
+        list.append(tab);
+    });
+}
+
+function switchToFile(path) {
+    const oldExtension = activeFilePath.split('.').pop().toLowerCase();
+    const isOldFileImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(oldExtension);
+    const oldFile = getFileByPath(activeFilePath);
+    if (oldFile && !isOldFileImage) {
+        oldFile.content = editor.val();
+    }
+
+    activeFilePath = path;
+    const newFile = getFileByPath(path);
+    const newExtension = path.split('.').pop().toLowerCase();
+    const isNewFileImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(newExtension);
+
+    const imgPreview = document.getElementById('image-preview');
+    const gutter = $('#line-gutter');
+
+    if (isNewFileImage) {
+        editor.hide();
+        gutter.hide();
+        imgPreview.src = newFile.content;
+        imgPreview.style.display = "block";
+    } else {
+        editor.show();
+        gutter.show();
+        imgPreview.style.display = "none";
+        editor.val(newFile.content || "");
+    }
+    
+    updateFileTree();
+    updateFileBar();
+    updateGutters();
+}
+
+function getFileByPath(path) {
+    const parts = path.split('/');
+    let current = filesystem;
+    for (let i = 0; i < parts.length; i++) {
+        if (!current[parts[i]]) return null;
+        if (i === parts.length - 1) return current[parts[i]];
+        current = current[parts[i]].children;
+    }
+}
+
+function setPathValue(fs, path, content, isFolder=false) {
+    const parts = path.split('/').filter(p => p);
+    let current = fs;
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (i === parts.length - 1) {
+            current[part] = isFolder ? { type: "folder", children: {} } : { type: "file", content: content };
+        } else {
+            if (!current[part]) current[part] = { type: "folder", children: {} };
+            current = current[part].children;
+        }
+    }
+}
+
+function createNewFile() {
+    const name = prompt("Enter filename:");
+    if (!name) return;
+
+    const oldFile = getFileByPath(activeFilePath);
+    const oldExt = activeFilePath.split('.').pop().toLowerCase();
+    if (oldFile && !['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(oldExt)) {
+        oldFile.content = editor.val();
+    }
+
+    filesystem[name] = {
+        type: "file",
+        content: ""
+    };
+
+    switchToFile(name);
+}
+
+function getParentAndName(path) {
+    const parts = path.split('/');
+    const name = parts.pop();
+    let current = filesystem;
+    for (const part of parts) {
+        if (part) current = current[part].children;
+    }
+    return { parent: current, name: name };
+}
+
+function deleteItem(path) {
+    if (path === "main.py") return;
+    if (confirm(`Delete ${path}?`)) {
+        const { parent, name } = getParentAndName(path);
+        delete parent[name];
+        
+        if (activeFilePath === path) {
+            switchToFile("main.py");
+        }
+        updateFileTree();
+    }
+}
+
+function renameItem(path) {
+    const { parent, name: oldName } = getParentAndName(path);
+    const newName = prompt("New name:", oldName);
+    
+    if (!newName || newName === oldName) return;
+    if (parent[newName]) return alert("A file with that name already exists!");
+
+    parent[newName] = parent[oldName];
+    delete parent[oldName];
+
+    if (activeFilePath === path) {
+        const pathParts = path.split('/');
+        pathParts.pop();
+        pathParts.push(newName);
+        activeFilePath = pathParts.join('/');
+    }
+
+    updateFileTree();
+}
+
+function moveFileSystemItem(sourcePath, targetFolderPath) {
+    if (sourcePath === targetFolderPath) return;
+    if (targetFolderPath.startsWith(sourcePath + "/")) {
+        alert("Cannot move a folder into itself!");
+        return;
+    }
+
+    const fileName = sourcePath.split('/').pop();
+    const itemToMove = getFileByPath(sourcePath);
+    
+    deleteItemByPath(sourcePath);
+    
+    const targetFolder = getFileByPath(targetFolderPath);
+    targetFolder.children[fileName] = itemToMove;
+    
+    if (activeFilePath === sourcePath) {
+        activeFilePath = targetFolderPath + "/" + fileName;
+    } else if (activeFilePath.startsWith(sourcePath + "/")) {
+        activeFilePath = activeFilePath.replace(sourcePath, targetFolderPath + "/" + fileName);
+    }
+
+    updateFileTree();
+    updateFileBar();
+}
+
+function deleteItemByPath(path) {
+    const parts = path.split('/');
+    let current = filesystem;
+    for (let i = 0; i < parts.length - 1; i++) {
+        current = current[parts[i]].children;
+    }
+    delete current[parts[parts.length - 1]];
+}
+
+function updateGutters() {
+    const lines = editor.val().split('\n').length;
+    const digits = lines.toString().length;
+    gutter.css('width', Math.max(35, digits * 8 + 15) + 'px');
+    
+    let str = "";
+    for (let i = 1; i <= lines; i++) {
+        str += i + "\n";
+    }
+    gutter.val(str);
+    
+    gutter.scrollTop(editor.scrollTop());
+}
+
+let popoutWindow = null;
+
+function popoutCanvas() {
+    const userCode = editor.val();
+    const drawModuleCode = document.getElementById("draw-module-code").innerText;
+    
+    const fsData = btoa(unescape(encodeURIComponent(JSON.stringify(filesystem))));
+
+    const encodedDraw = btoa(unescape(encodeURIComponent(drawModuleCode)));
+    const encodedUser = btoa(unescape(encodeURIComponent(userCode)));
+
+    const popout = window.open("", "CanvasPopout", "width=600,height=800");
+    
+    const htmlContent = `
+    <html>
+    <head>
+        <title>Canvas Popout</title>
+        <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"><\/script>
+        <style>
+            body { margin: 0; padding: 20px; background: #222; display: flex; flex-wrap: wrap; gap: 15px; font-family: sans-serif; }
+            canvas { box-shadow: 5px 5px 15px rgba(0,0,0,0.5); max-width: 100%; }
+        </style>
+    </head>
+    <body>
+        <div id="status" style="color: #00ff00; font-family: monospace;">Initializing FS & Engine...</div>
+        <script>
+                async function run() {
+                    let pyodide = await loadPyodide();
+                    
+                    const fs = JSON.parse(decodeURIComponent(escape(atob("${fsData}"))));
+                    
+                    function syncFS(obj, path = "") {
+                        for (let name in obj) {
+                            let item = obj[name];
+                            let fullPath = path + name;
+                            if (item.type === 'file') {
+                                pyodide.FS.writeFile(fullPath, item.content);
+                            } else {
+                                try { pyodide.FS.mkdir(fullPath); } catch(e){}
+                                syncFS(item.children, fullPath + "/");
+                            }
+                        }
+                    }
+                    syncFS(fs);
+
+                    const drawCode = decodeURIComponent(escape(atob("${encodedDraw}")));
+                    const userCode = decodeURIComponent(escape(atob("${encodedUser}")));
+                    
+                    await pyodide.runPythonAsync(\`
+import sys, __main__
+from types import ModuleType
+draw_mod = ModuleType('draw')
+exec(\"\"\"\${drawCode.replace(/\"\"\"/g, '\\\\\\\"\\\\\\\"\\\\\\\"')}\"\"\", draw_mod.__dict__)
+sys.modules['draw'] = draw_mod
+setattr(__main__, 'draw', draw_mod)
+                    \`);
+
+                    const draw = pyodide.globals.get("draw");
+                    if(draw && draw.setup) { draw.setup(window, document); }
+                    
+                    document.getElementById("status").innerText = "Running Script...";
+                    await pyodide.runPythonAsync(userCode);
+                    
+                    const statusEl = document.getElementById("status");
+                    if(statusEl) statusEl.style.display = "none";
+                }
+                run();
+            <\/script>
+    </body>
+    </html>
+`;
+
+    popout.document.open();
+    popout.document.write(htmlContent);
+    popout.document.close();
+}
+
+// --- INITIALIZATION ---
+async function initPyodide() {
+    pyodide = await loadPyodide();
+
+    pyodide.globals.set("js_input", getConsoleInput);
+
+    const drawCode = document.getElementById("draw-module-code").textContent;
+    pyodide.FS.writeFile("draw.py", drawCode);
+    
+    consoleDiv.innerText = "Python Ready.";
+    runBtn.disabled = false;
+    
+    const canvas = document.getElementById("pyCanvas");
+    
+    updateFileTree();
+
+    canvas.addEventListener("click", (e) => {
+    canvas.focus();
+    if (!pyodide) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    try {
+        pyodide.runPython(`import draw\ndraw._internal_click_handler(${x}, ${y})`);
+    } catch (err) { console.error(err); }
+    
+    const initialFile = getFileByPath(activeFilePath);
+    editor.val(initialFile.content);
+    
+    updateGutters();
+});
+
+    window.addEventListener("keydown", (e) => {
+    if (!pyodide || !isRunning) return;
+
+    try {
+        pyodide.runPython(`
+import sys
+target_module = sys.modules.get('draw')
+if target_module:
+    target_module._internal_key_handler("${e.key}", True)
+        `);
+    } catch (err) { console.error("Key Error:", err); }
+
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight", " "].includes(e.key)) {
+        if (document.activeElement.id !== "editor" && document.activeElement.id !== "console-input") {
+            e.preventDefault();
+        }
+    }
+}, true);
+
+    window.addEventListener("keyup", (e) => {
+        if (!pyodide) return;
+        try {
+            pyodide.runPython(`import draw\ndraw._internal_key_handler("${e.key}", False)`);
+        } catch (err) { }
+    });
+
+    const initialFile = getFileByPath(activeFilePath);
+    editor.val(initialFile.content);
+    updateFileBar();
+    updateGutters();
+}
+
+$(document).ready(function() {
+    initPyodide();
+
+    editor.on('input', updateGutters);
+    editor.on('scroll', function() {
+      gutter.scrollTop(editor.scrollTop());
+    });
+    editor.on('keydown', function(e) {
+        if (e.key == 'Tab') {
+            e.preventDefault();
+            var s = this.selectionStart, ep = this.selectionEnd;
+            this.value = this.value.substring(0, s) + "    " + this.value.substring(ep);
+            this.selectionStart = this.selectionEnd = s + 4;
+            updateGutters();
+        }
+    });
+    $('#docs-toggle').on('click', function() {
+    $('#docs-content').slideToggle(200, function() {
+        const isVisible = $('#docs-content').is(':visible');
+        $('#docs-arrow').text(isVisible ? '▼' : '▲');
+    });
+  });
+});
+
+// --- EXECUTION LOGIC ---
+function getConsoleInput(p) {
+    return new Promise((r, reject) => {
+        if (!isRunning) reject("Stopped");
+        consoleDiv.appendChild(Object.assign(document.createElement("span"), {textContent: p}));
+        const i = Object.assign(document.createElement("input"), {className: "console-input", id: "console-input"});
+        consoleDiv.appendChild(i); i.focus();
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        i.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                const v = i.value;
+                i.remove();
+                consoleDiv.append(v + "\n");
+                r(v);
+            }
+        });
+    });
+}
+
+function stopPython() {
+    isRunning = false;
+    
+    if (popoutWindow && !popoutWindow.closed) {
+        popoutWindow.close();
+    }
+    
+    try {
+        pyodide.runPython(`
+import draw
+draw.isRunning = False
+draw.reset()
+        `);
+    } catch(e) {}
+    
+    consoleDiv.textContent += "\n[Stop Signal Sent]\n";
+    runBtn.disabled = false;
+    stopBtn.disabled = true;
+}
+
+async function runPython() {
+    stopPython();
+    const activeFileObj = getFileByPath(activeFilePath);
+    if (activeFileObj) activeFileObj.content = editor.val();
+
+    isRunning = true;
+    consoleDiv.textContent = "";
+    runBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    function syncFS(obj, path = "") {
+        for (let name in obj) {
+            let item = obj[name];
+            let fullPath = path + name;
+            if (item.type === 'file') {
+                pyodide.FS.writeFile(fullPath, item.content);
+            } else {
+                try { pyodide.FS.mkdir(fullPath); } catch(e){}
+                syncFS(item.children, fullPath + "/");
+            }
+        }
+    }
+
+    syncFS(filesystem);
+
+    const userCode = getFileByPath("main.py").content;
+
+    const script = `
+import asyncio
+import sys
+import draw
+from pyodide.code import eval_code_async
+
+# Ensure the draw module is correct
+if 'draw' in sys.modules:
+    draw = sys.modules['draw']
+
+draw.isRunning = True
+
+# We need to make sure Python knows where js_input is
+import __main__
+setattr(__main__, 'js_input', js_input)
+
+
+async def input(p=""):
+    # This now correctly awaits the JS Promise
+    return await js_input(p)
+
+async def __run__():
+    try:
+        draw.reset()
+        
+        # We pass globals() so the user code can see 'draw' and 'input'
+        user_globals = globals()
+        
+        await eval_code_async("""${userCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}""", user_globals)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
+# Create the task
+asyncio.ensure_future(__run__())
+`;
+    pyodide.setStdout({
+        batched: (s) => {
+            if (isRunning) {
+                consoleDiv.textContent += s + "\n";
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+        }
+    });
+
+    try {
+        await pyodide.runPythonAsync(script);
+    } catch (e) {
+        if (isRunning) consoleDiv.innerHTML += `<span style="color:red">${e}</span>\n`;
+    } finally {
+        runBtn.disabled = false;
+        stopBtn.disabled = false;
+    }
+}
+
+toggleSidebar();
+    </script>
+</body>
+</html>
