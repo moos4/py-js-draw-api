@@ -6,9 +6,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { display: flex; flex-direction: row; gap: 20px; padding: 20px; font-family: sans-serif; background-color: #f4f4f4; }
-        .pycontainer { display: flex; flex-direction: column; width: 800px; }
-        .workspace { display: flex; flex: 1; overflow: hidden; }
+        body { display: flex; flex-direction: row; padding: none; margin: none; font-family: sans-serif; background-color: #f4f4f4; overflow-x:hidden;}
+        .pycontainer {display: flex; flex-direction: column; flex: 1; height: 100vh;}
+        .workspace { display: flex; flex: 1; overflow: hidden; height: 100vh;}
         .file-bar {
             display: flex;
             background: #222;
@@ -52,13 +52,14 @@
             flex-shrink: 0;
         }
         .textareaLinesNumbers {
-    position: relative;
-    border: 2px solid black;
-    background: white;
-    display: flex;
-    overflow: hidden;
-    box-sizing: border-box;
-    min-height: 400px;
+          position: relative;
+          border: 2px solid black;
+          border-top: none;
+          background: white;
+          display: flex;
+          overflow: hidden;
+          box-sizing: border-box;
+          min-height: 400px;
 }
 
 #image-preview {
@@ -74,45 +75,57 @@
             display: block; border: none; border-right: 1px solid #ddd;
             text-align: right; padding: 10px 5px; width: 35px;
             z-index: 0; resize: none; background: #eee; color: #999;
-            font-family: monospace; font-size: 14px; line-height: 21px;
+            font-family: monospace; font-size: 12px; line-height: 18px;
             overflow: hidden; pointer-events: none; box-sizing: border-box;
         }
         textarea#editor {
             z-index: 1; flex-grow: 1; resize: none; border: none; outline: none;
-            background: transparent; height: 400px; padding: 10px;
-            font-family: monospace; font-size: 14px; line-height: 21px;
+            background: transparent; height: calc(100vh - 245px - 20px); padding: 10px;
+            font-family: monospace; font-size: 12px; line-height: 18px;
             display: block; white-space: pre; overflow: auto;
         }
         .consolediv {
-            border: 2px solid black; height: 200px; width: 800px; padding: 10px;
+            border: 2px solid black; height: 200px; width: 100%; padding: 10px;
             background: #1e1e1e; color: #00ff00; overflow: auto;
             font-family: monospace; font-size: 14px; line-height: 21px; box-sizing: border-box;
             white-space: pre-wrap; word-wrap: break-word;
         }
         .taskbar {
             display: flex; align-items: center; padding: 8px 10px; background: #ccc;
-            border-left: 2px solid black; border-right: 2px solid black;
+            border-left: 2px solid black; border-right: 2px solid black; width: calc(100% - 22px);
         }
         button { padding: 5px 15px; cursor: pointer; font-weight: bold; background: #fff; border: 1px solid #000; }
         .console-input { background: transparent; border: none; color: #00ff00; font-family: monospace; outline: 1px solid #000; width: 80%; box-shadow: 0 0 0 1pt grey;}
         .main-layout {
             display: flex;
+            position: absolute;
             flex-direction: row;
-            gap: 20px;
             align-items: flex-start;
+            top:0px;
+            left: 0px;
+            width: 100%;
+            
         }
         
         .right-sidebar {
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            width: 404px;
+            width: calc(400px);
         }
         
         .docs-panel {
             border: 2px solid black;
             background: #fff;
             font-family: sans-serif;
+            width: 398px;
+            
+            position: absolute;
+            right: 0;
+            top: 421px;
+            bottom: 0;
+            
+            display: flex;
+            flex-direction: column;
         }
         
         .docs-header {
@@ -124,15 +137,16 @@
             display: flex;
             justify-content: space-between;
             user-select: none;
+            flex-shrink: 0;
         }
         
         .docs-content {
             padding: 10px;
             font-size: 13px;
             line-height: 1.5;
-            max-height: 300px;
+            
             overflow-y: auto;
-            border-top: 1px solid black;
+            overflow-x: auto;
         }
         
         .docs-content code {
@@ -152,7 +166,7 @@
     display: flex; flex-direction: column; transition: width 0.3s;
     border-right: 1px solid #111; position: relative;
 }
-.sidebar.collapsed { width: 0; overflow: hidden; border: none; }
+.sidebar.collapsed {width: 50px; overflow-y: scroll;}
 
 .sidebar-header {
     padding: 10px; background: #333; font-size: 12px; font-weight: bold;
@@ -206,23 +220,25 @@
     padding-left: 4px;
 }
 
-.fs-actions { padding: 10px; display: flex; flex-wrap: wrap; gap: 5px; background: #2d2d2d; }
+.fs-actions { padding: 10px; display: flex; flex-wrap: wrap; gap: 5px; background: #2d2d2d; overflow-y: scroll; max-height: 80px;}
 .fs-btn {
     background: #444; border: none; color: white; padding: 5px;
     font-size: 11px; cursor: pointer; flex: 1; min-width: 60px;
 }
 .fs-btn:hover { background: #666; }
 #toggle-sidebar {
-    position: absolute; left: 250px; top: 10px; z-index: 100;
+    position: absolute; right: 0px; top: 0px; z-index: 100;
     background: #252526; color: white; border: 1px solid #444; cursor: pointer;
+    width: 50px;
 }
     </style>
 </head>
 <body>
-<button id="toggle-sidebar" onclick="toggleSidebar()">◀</button>
+
 <div class="main-layout">
     <div class="workspace">
       <div class="sidebar collapsed" id="sidebar">
+        <button id="toggle-sidebar" onclick="toggleSidebar()">◀</button>
           <div class="sidebar-header">EXPLORER</div>
           <div class="fs-actions">
               <button class="fs-btn" onclick="createNewFile()">+ File</button>
@@ -233,7 +249,7 @@
           </div>
           <div id="file-tree" class="file-tree"></div>
           
-          <input type="file" id="import-file" style="display:none" multiple onchange="handleFileImport(this)">
+          <input type="file" id="import-file" style="display:none" onchange="handleFileImport(this)">
           <input type="file" id="import-zip" style="display:none" accept=".zip" onchange="handleZipImport(this)">
       </div>
       <div class="pycontainer">
@@ -253,12 +269,13 @@
     </div>
     </div>
     <div class="right-sidebar">
-        <div class="canvas-container" style="margin-left: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span style="font-size: 12px; font-family: sans-serif;"><b>Canvas:</b> 400x400</span>
-                <button onclick="popoutCanvas()" style="padding: 2px 8px; font-size: 10px;">Popout ↗</button>
+        <div class="canvas-container" style="margin-left: 0px; position: absolute; top: -2px; right: -2px">
+            <div style="display: flex; position: absolute; top: 400px; right: 0px;">
+                <span style="font-size: 12px; font-family: sans-serif; right: calc(400px - 99px - 2px); top: 6px; position: absolute; min-width: 99px;"><b>Canvas:</b> 400x400</span>
+                <button onclick="popoutCanvas()" style="max-height: 23px; width:70px; border: 2px solid black; padding: 2px 8px; font-size: 10px; position: absolute; right: -3px; top: 2px;">Popout ↗</button>
+                <hr style="border: 1px solid black; padding: 0px; margin: 0px; position: absolute; width: 398px; top: 19px;">
             </div>
-            <canvas id="pyCanvas" width="400" height="400" tabindex="0" style="border: 2px solid black; background: white; outline: none;"></canvas>
+            <canvas id="pyCanvas" width="400" height="400" tabindex="0" style="border: 2px solid black; background: white; outline: none; position: absolute; top: 0px; right: 0px;"></canvas>
         </div>
         <div class="docs-panel">
             <div class="docs-header" id="docs-toggle">
@@ -529,7 +546,7 @@ let isRunning = false;
 
 // Initial File Set
 let filesystem = {
-    "main.py": { content: "# Main Script\nimport draw", type: "file" },
+    "main.py": { content: "# Main Script\nimport draw \ncv = draw.Canvas(400, 400)", type: "file" },
     "assets": { type: "folder", children: {} }
 };
 let activeFilePath = "main.py";
@@ -556,13 +573,7 @@ function renderLevel(obj, container, path) {
         "png": { icon: "fas fa-file-image", color: "#4caf50" },
         "gif": { icon: "fas fa-file-image", color: "#4caf50" },
         "webp": { icon: "fas fa-file-image", color: "#4caf50" },
-        "default": { icon: "fas fa-file", color: "#ccc" },
-        "obj": { icon: "fas fa-cubes", color: "#0073ff" },
-        "mtl": { icon: "fas fa-cube", color: "#ff7700" },
-        "gltf": { icon: "fas fa-cubes", color: "#0073ff" },
-        "glb": { icon: "fas fa-cubes", color: "#0073ff" },
-        "fbx": { icon: "fas fa-cubes", color: "#0073ff" },
-        "stl": { icon: "fas fa-cubes", color: "#0073ff" },
+        "default": { icon: "fas fa-file", color: "#ccc" }
     };
 
     Object.keys(obj).sort().forEach(name => {
@@ -675,32 +686,30 @@ async function handleZipImport(input) {
 }
 
 async function handleFileImport(input) {
-    const files = Array.from(input.files);
-    for (const file of files) {
-        if (!file) return;
+    const file = input.files[0];
+    if (!file) return;
 
-        const name = file.name;
-        const extension = name.split('.').pop().toLowerCase();
-        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            const content = e.target.result;
+    const name = file.name;
+    const extension = name.split('.').pop().toLowerCase();
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const content = e.target.result;
 
-            filesystem[name] = {
-                type: "file",
-                content: content
-            };
-
-            switchToFile(name);
-            input.value = "";
+        filesystem[name] = {
+            type: "file",
+            content: content
         };
 
-        if (isImage) {
-            reader.readAsDataURL(file);
-        } else {
-            reader.readAsText(file);
-        }
+        switchToFile(name);
+        input.value = "";
+    };
+
+    if (isImage) {
+        reader.readAsDataURL(file);
+    } else {
+        reader.readAsText(file);
     }
 }
 
@@ -723,7 +732,7 @@ function toggleSidebar() {
     const sb = document.getElementById('sidebar');
     const btn = document.getElementById('toggle-sidebar');
     sb.classList.toggle('collapsed');
-    btn.style.left = sb.classList.contains('collapsed') ? '0px' : '250px';
+    btn.style.right = sb.classList.contains('collapsed') ? '0px' : '0px';
     btn.innerText = sb.classList.contains('collapsed') ? '▶' : '◀';
 }
 
@@ -950,7 +959,7 @@ function popoutCanvas() {
         <title>Canvas Popout</title>
         <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"><\/script>
         <style>
-            body { margin: 0; padding: 20px; background: #222; display: flex; flex-wrap: wrap; gap: 15px; font-family: sans-serif; }
+            body { margin: 0; padding: 20px; background: #222; display: flex; flex-wrap: wrap; font-family: sans-serif; }
             canvas { box-shadow: 5px 5px 15px rgba(0,0,0,0.5); max-width: 100%; }
         </style>
     </head>
