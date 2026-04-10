@@ -294,7 +294,7 @@
                 <div class="docs-item"><code>draw.line(x1, y1, x2, y2, color, width)</code><br>Draws a line with a specific thickness.<br>Returns nothing.<br><i>Ex: <code>draw.line(50, 50, 25, 25, "red", 10)</code></i></div>
                 <div class="docs-item"><code>draw.text(val, x, y, color)</code><br>Draws text. <code>val</code> can be a string, number, or variable.<br>Returns nothing.<br><i>Ex: <code>draw.text("Some Text", 50, 50, "red")</code></i></div>
                 <div class="docs-item"><code>draw.image(path, x, y, width, height)</code><br>Loads image from <b>URL</b> or <b>Filesystem</b>. Automatically handles async loading.<br><b>width</b> or <b>height</b> are not necessary<br>Returns a <b>Shape</b> object.<br><i>Ex: <code>cv = draw.image("map.png", 50, 50)</code></i></div>
-                <div class="docs-item"><code>draw.gradient(c1, c2)</code><br>Creates a vertical fade. <br>Can be used in other methods as the <b>color</b><br>Returns a <b>color</b> object.<br><i>Ex: <code>draw.rect(0,0,100,100, draw.gradient("blue", "black"))</code></i></div>
+                <div class="docs-item"><code>draw.gradient(cl, rt)</code><br>Creates a fade between the colors in the <code>cl</code> list. <br>The <code>rt</code> argument is the rotation of the gradient in degrees. <br>Can be used in other methods as the <b>color</b><br>Returns a <b>color</b> object.<br><i>Ex: <code>draw.rect(0,0,100,100, draw.gradient(["blue", "black"], 45))</code></i></div>
                 <div class="docs-item"><code>draw.set_alpha(0.0 - 1.0)</code><br>Sets transparency for all following shapes on that canvas.<br>Returns nothing.<br><i>Ex: <code>draw.set_alpha(0.5)</code></i></div>
                 <div class="docs-item"><code>draw.clear()</code><br>Wipes the canvas drawings and shapes, but keeps keys active.<br>Returns nothing.<br><i>Ex: <code>draw.clear()</code></i></div>
                 
@@ -312,7 +312,7 @@
     </div>
 </div>
 <script id="draw-module-code" type="text/python">
-import asyncio, base64
+import asyncio, base64, math
 from js import document, Image, window
 
 _pressed_keys = set()
@@ -366,10 +366,26 @@ class Canvas:
             fill = task.get('color', 'black')
             
             if isinstance(fill, dict) and fill.get("_is_gradient"):
-                h_val = task.get('h', task.get('r', 0) * 2)
-                y_start = task.get('y', 0)
-                g = self.ctx.createLinearGradient(task.get('x', 0), y_start, task.get('x', 0), y_start + h_val)
-                g.addColorStop(0, fill['c1']); g.addColorStop(1, fill['c2'])
+                if 'r' in task:
+                    cx = task.get('x', 0)
+                    cy = task.get('y', 0)
+                else:
+                    cx = task.get('x', 0) + (task.get('w', task.get('r', 0) * 2) / 2)
+                    cy = task.get('y', 0) + (task.get('h', task.get('r', 0) * 2) / 2)
+                angle_rad = math.radians(fill.get('rt', 0))
+                gradient_len = task.get('h', task.get('r', 0) * 2) / 2
+                dx = gradient_len * math.sin(angle_rad)
+                dy = gradient_len * math.cos(angle_rad)
+                g = self.ctx.createLinearGradient(
+                    cx - dx, cy - dy,
+                    cx + dx, cy + dy
+                )
+                
+                cna = 1/(len(fill["cl"])-1)
+                cn = 0
+                for cl in fill["cl"]:
+                    g.addColorStop(cn, cl)
+                    cn+=cna
                 self.ctx.fillStyle = g
                 self.ctx.strokeStyle = g
             else:
@@ -498,7 +514,7 @@ def rect(*args, **kwargs): return _get_default().rect(*args, **kwargs)
 def circle(*args, **kwargs): return _get_default().circle(*args, **kwargs)
 def text(*args, **kwargs): return _get_default().text(*args, **kwargs)
 def clear(): _get_default().clear()
-def gradient(c1, c2): return {"_is_gradient": True, "c1": c1, "c2": c2}
+def gradient(cl, rt): return {"_is_gradient": True, "cl": cl, "rt": rt}
 def line(*args, **kwargs): return _get_default().line(*args, **kwargs)
 def image(*args, **kwargs): return _get_default().image(*args, **kwargs)
 
