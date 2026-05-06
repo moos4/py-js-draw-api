@@ -1241,6 +1241,37 @@ asyncio.ensure_future(__run__())
         runBtn.disabled = false;
         stopBtn.disabled = false;
     }
+    // --- Inside runPython after await pyodide.runPythonAsync(script) ---
+
+function syncBack(obj, path = "") {
+    // readdir(".") gives us the current virtual directory
+    const items = pyodide.FS.readdir(path || ".").filter(i => i !== '.' && i !== '..');
+
+    items.forEach(name => {
+        const fullPath = path + name;
+        
+        // Skip system folders and the internal draw module
+        if (['dev', 'proc', 'sys', 'draw.py'].includes(name)) return;
+
+        const stat = pyodide.FS.stat(fullPath);
+        if (pyodide.FS.isDir(stat.mode)) {
+            // It's a folder: ensure it exists in JS and recurse
+            if (!obj[name]) obj[name] = { type: "folder", children: {} };
+            syncBack(obj[name].children, fullPath + "/");
+        } else {
+            // It's a file: read the content from Pyodide and update JS
+            const content = pyodide.FS.readFile(fullPath, { encoding: 'utf8' });
+            obj[name] = { type: "file", content: content };
+        }
+    });
+}
+
+// Perform the sync back to your JS 'filesystem' object
+syncBack(filesystem);
+
+// Refresh your UI components
+updateFileTree();
+updateFileBar();
 }
 
 toggleSidebar();
